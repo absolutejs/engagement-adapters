@@ -1,0 +1,15 @@
+{
+  "author": "Alex Kahn",
+  "description": "Monorepo root for @absolutejs/engagement sales-engagement adapters — enrichment + outreach activity from Apollo, Outreach, Salesloft, … normalized to the EngagementSource contract. Subpackages live in ./<name>/ and publish independently as @absolutejs/engagement-<name>.",
+  "license": "Apache-2.0",
+  "name": "engagement-adapters",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/absolutejs/engagement-adapters.git"
+  },
+  "workspaces": [
+    "core",
+    "apollo"
+  ]
+}

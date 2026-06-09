@@ -1,0 +1,39 @@
+{
+  "author": "Alex Kahn",
+  "description": "The EngagementSource contract + normalized types for @absolutejs/engagement sales-engagement adapters — enrichment (person/company) and outreach activity (email/LinkedIn/call touchpoints).",
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "5.8.3"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "absolutejs",
+    "engagement",
+    "enrichment",
+    "sales-engagement",
+    "outreach"
+  ],
+  "license": "Apache-2.0",
+  "main": "./dist/index.js",
+  "name": "@absolutejs/engagement",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "directory": "core",
+    "type": "git",
+    "url": "https://github.com/absolutejs/engagement-adapters.git"
+  },
+  "scripts": {
+    "build": "rm -rf dist && bun build src/index.ts --outdir dist --target=bun && tsc --emitDeclarationOnly --project tsconfig.json",
+    "release": "bun run build && bun publish",
+    "typecheck": "tsc --noEmit"
+  },
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "version": "0.0.1"
+}

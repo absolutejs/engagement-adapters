@@ -1,0 +1,43 @@
+{
+  "author": "Alex Kahn",
+  "description": "Apollo.io EngagementSource adapter for @absolutejs/engagement — person/company enrichment and outreach activity (emails sent/opened/replied) from the Apollo API.",
+  "devDependencies": {
+    "@absolutejs/engagement": "^0.0.1",
+    "@types/bun": "latest",
+    "typescript": "5.8.3"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "absolutejs",
+    "engagement",
+    "apollo",
+    "enrichment",
+    "sales-engagement"
+  ],
+  "license": "Apache-2.0",
+  "main": "./dist/index.js",
+  "name": "@absolutejs/engagement-apollo",
+  "peerDependencies": {
+    "@absolutejs/engagement": ">=0.0.1"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "directory": "apollo",
+    "type": "git",
+    "url": "https://github.com/absolutejs/engagement-adapters.git"
+  },
+  "scripts": {
+    "build": "rm -rf dist && bun build src/index.ts --outdir dist --target=bun --external @absolutejs/engagement && tsc --emitDeclarationOnly --project tsconfig.json",
+    "release": "bun run build && bun publish",
+    "typecheck": "tsc --noEmit"
+  },
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "version": "0.0.1"
+}
