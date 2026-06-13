@@ -9,6 +9,19 @@
 // untyped provider payload is preserved on `raw` for callers that need a field we have
 // not normalized yet.
 
+/**
+ * Thrown by an adapter when the provider reports a rate limit (e.g. HTTP 429), so
+ * a consumer can DEFER (retry when the window resets) instead of mistaking it for
+ * "no results found". Other failures still resolve to null/[] — only an explicit
+ * rate limit throws, because only it is meaningfully retryable-later.
+ */
+export class RateLimitError extends Error {
+  constructor(public readonly provider: string) {
+    super(`${provider}: rate limited`);
+    this.name = "RateLimitError";
+  }
+}
+
 export type NormalizedPerson = {
   /** Every known address (work + personal), best-first and de-duplicated. The
    *  primary is `emails[0]`; empty when the provider returned none. One list, so

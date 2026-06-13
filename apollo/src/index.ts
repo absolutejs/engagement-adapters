@@ -6,6 +6,7 @@
 // untyped JSON and several capabilities are plan-gated, so a missing field or an
 // unsupported plan yields `null`/`[]` rather than throwing.
 
+import { RateLimitError } from "@absolutejs/engagement";
 import type {
   ActivityQuery,
   EngagementActivity,
@@ -56,12 +57,17 @@ export const apolloSource = (options: ApolloOptions): EngagementSource => {
     "X-Api-Key": options.apiKey,
   };
 
+  // A 429 is surfaced as a RateLimitError so the caller can DEFER (the window
+  // resets, then retry) rather than read an empty body as "nothing found" and
+  // act on it. Every other non-OK status stays a soft null (the provider is
+  // best-effort + plan-gated; a missing capability must not throw).
   const post = async (path: string, body: Json): Promise<Json | null> => {
     const res = await doFetch(`${baseUrl}${path}`, {
       body: JSON.stringify(body),
       headers,
       method: "POST",
     });
+    if (res.status === 429) throw new RateLimitError("apollo");
     if (!res.ok) return null;
     const json: unknown = await res.json();
 
@@ -70,6 +76,7 @@ export const apolloSource = (options: ApolloOptions): EngagementSource => {
 
   const get = async (path: string): Promise<Json | null> => {
     const res = await doFetch(`${baseUrl}${path}`, { headers, method: "GET" });
+    if (res.status === 429) throw new RateLimitError("apollo");
     if (!res.ok) return null;
     const json: unknown = await res.json();
 

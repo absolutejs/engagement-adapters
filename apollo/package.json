@@ -2,7 +2,7 @@
   "author": "Alex Kahn",
   "description": "Apollo.io EngagementSource adapter for @absolutejs/engagement — person/company enrichment and outreach activity (emails sent/opened/replied) from the Apollo API.",
   "devDependencies": {
-    "@absolutejs/engagement": "^0.0.3",
+    "@absolutejs/engagement": "workspace:*",
     "@types/bun": "latest",
     "typescript": "5.8.3"
   },
@@ -39,5 +39,5 @@
   },
   "type": "module",
   "types": "./dist/index.d.ts",
-  "version": "0.0.3"
+  "version": "0.0.4"
 }
