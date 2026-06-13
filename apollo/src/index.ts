@@ -14,10 +14,14 @@ import type {
   EnrichPersonQuery,
   NormalizedCompany,
   NormalizedPerson,
+  PersonSearchQuery,
 } from "@absolutejs/engagement";
 
 const APOLLO_BASE_URL = "https://api.apollo.io";
 const DEFAULT_ACTIVITY_LIMIT = 50;
+const DEFAULT_SEARCH_LIMIT = 6;
+// Apollo's search returns a locked placeholder address until a person is enriched.
+const LOCKED_EMAIL = /email_not_unlocked/iu;
 
 export type ApolloOptions = {
   apiKey: string;
@@ -72,24 +76,29 @@ export const apolloSource = (options: ApolloOptions): EngagementSource => {
     return isRecord(json) ? json : null;
   };
 
-  const enrichPerson = async (
-    query: EnrichPersonQuery,
-  ): Promise<NormalizedPerson | null> => {
-    const json = await post("/v1/people/match", {
-      domain: query.domain,
-      email: query.email,
-      linkedin_url: query.linkedinUrl,
-      name: query.name,
-      organization_name: query.company,
-    });
-    const person = json && isRecord(json.person) ? json.person : null;
-    if (!person) return null;
+  // Map a revealed Apollo person record → NormalizedPerson. Shared by
+  // enrichPerson and searchPeople (which reveals each search hit by id).
+  const normalizePerson = (person: Json): NormalizedPerson => {
     const org = isRecord(person.organization) ? person.organization : null;
+    // Apollo spreads addresses across `email` (primary work), `personal_emails`,
+    // and `contact.email` — gather them all, drop the locked placeholder, and
+    // de-dupe (primary first) so a consumer can offer alternates.
+    const contact = isRecord(person.contact) ? person.contact : null;
+    const personalEmails = Array.isArray(person.personal_emails)
+      ? person.personal_emails.map(str)
+      : [];
+    const emails = Array.from(
+      new Set(
+        [str(person.email), contact ? str(contact.email) : null, ...personalEmails]
+          .filter((value): value is string => value !== null)
+          .filter((value) => !LOCKED_EMAIL.test(value)),
+      ),
+    );
 
     return {
       company: org ? str(org.name) : null,
       companyDomain: org ? str(org.primary_domain) : null,
-      email: str(person.email),
+      emails,
       firstName: str(person.first_name),
       lastName: str(person.last_name),
       linkedinUrl: str(person.linkedin_url),
@@ -103,6 +112,61 @@ export const apolloSource = (options: ApolloOptions): EngagementSource => {
       raw: person,
       title: str(person.title),
     };
+  };
+
+  // Reveal a single person by their Apollo id (the search returns obfuscated
+  // previews; people/match by id unlocks the full record).
+  const matchById = async (id: string): Promise<NormalizedPerson | null> => {
+    const json = await post("/v1/people/match", { id });
+    const person = json && isRecord(json.person) ? json.person : null;
+
+    return person ? normalizePerson(person) : null;
+  };
+
+  const enrichPerson = async (
+    query: EnrichPersonQuery,
+  ): Promise<NormalizedPerson | null> => {
+    const json = await post("/v1/people/match", {
+      domain: query.domain,
+      email: query.email,
+      linkedin_url: query.linkedinUrl,
+      name: query.name,
+      organization_name: query.company,
+    });
+    const person = json && isRecord(json.person) ? json.person : null;
+
+    return person ? normalizePerson(person) : null;
+  };
+
+  // Find the decision-makers at a company by role. Apollo's api_search returns
+  // OBFUSCATED previews (first name + title + an id), so we reveal each hit by
+  // id — yielding fully-resolved people (name, LinkedIn, email when allowed).
+  const searchPeople = async (
+    query: PersonSearchQuery,
+  ): Promise<NormalizedPerson[]> => {
+    const limit = query.limit ?? DEFAULT_SEARCH_LIMIT;
+    const search = await post("/v1/mixed_people/api_search", {
+      page: 1,
+      per_page: limit,
+      ...(query.titles && query.titles.length > 0
+        ? { person_titles: query.titles }
+        : {}),
+      ...(query.domain ? { q_organization_domains_list: [query.domain] } : {}),
+      ...(!query.domain && query.company
+        ? { q_keywords: query.company }
+        : {}),
+    });
+    const previews =
+      search && Array.isArray(search.people) ? search.people : [];
+    const ids = previews
+      .map((person) => (isRecord(person) ? str(person.id) : null))
+      .filter((id): id is string => id !== null);
+    if (ids.length === 0) return [];
+    const revealed = await Promise.all(ids.map((id) => matchById(id)));
+
+    return revealed.filter((person): person is NormalizedPerson =>
+      person !== null,
+    );
   };
 
   const enrichCompany = async (
@@ -177,5 +241,11 @@ export const apolloSource = (options: ApolloOptions): EngagementSource => {
       : activities;
   };
 
-  return { enrichCompany, enrichPerson, id: "apollo", listActivities };
+  return {
+    enrichCompany,
+    enrichPerson,
+    id: "apollo",
+    listActivities,
+    searchPeople,
+  };
 };

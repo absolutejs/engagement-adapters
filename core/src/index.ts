@@ -10,7 +10,10 @@
 // not normalized yet.
 
 export type NormalizedPerson = {
-  email: string | null;
+  /** Every known address (work + personal), best-first and de-duplicated. The
+   *  primary is `emails[0]`; empty when the provider returned none. One list, so
+   *  there's a single source of truth (no separate "primary" field to drift). */
+  emails: string[];
   name: string | null;
   firstName: string | null;
   lastName: string | null;
@@ -69,6 +72,19 @@ export type EnrichCompanyQuery = {
   name?: string;
 };
 
+/**
+ * Find the people at a company who match a set of role/title hints — "who are the
+ * partnerships leads at X". A provider resolves this from its own DB (reliable +
+ * instant, vs scraping the web). `titles` are matched loosely against each
+ * person's title; `limit` caps how many people to return.
+ */
+export type PersonSearchQuery = {
+  company?: string;
+  domain?: string;
+  titles?: string[];
+  limit?: number;
+};
+
 export type ActivityQuery = {
   contactEmail?: string;
   /** ISO-8601 lower bound — only activities at or after this instant. */
@@ -86,5 +102,8 @@ export type EngagementSource = {
   readonly id: string;
   enrichPerson?: (query: EnrichPersonQuery) => Promise<NormalizedPerson | null>;
   enrichCompany?: (query: EnrichCompanyQuery) => Promise<NormalizedCompany | null>;
+  /** Find the decision-makers at a company by role — returns fully-resolved
+   *  people (name, LinkedIn, email when the plan allows). */
+  searchPeople?: (query: PersonSearchQuery) => Promise<NormalizedPerson[]>;
   listActivities?: (query: ActivityQuery) => Promise<EngagementActivity[]>;
 };
