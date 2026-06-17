@@ -33,7 +33,13 @@ export type NormalizedPerson = {
   title: string | null;
   company: string | null;
   companyDomain: string | null;
+  // Public profile URLs the provider knows for this person — each a real way to
+  // reach them (connect/DM). Null when the provider has no handle for that
+  // network. `linkedinUrl` is the most common; the rest are populated when known.
   linkedinUrl: string | null;
+  twitterUrl: string | null;
+  facebookUrl: string | null;
+  githubUrl: string | null;
   photoUrl: string | null;
   location: string | null;
   raw?: unknown;

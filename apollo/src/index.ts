@@ -106,7 +106,9 @@ export const apolloSource = (options: ApolloOptions): EngagementSource => {
       company: org ? str(org.name) : null,
       companyDomain: org ? str(org.primary_domain) : null,
       emails,
+      facebookUrl: str(person.facebook_url),
       firstName: str(person.first_name),
+      githubUrl: str(person.github_url),
       lastName: str(person.last_name),
       linkedinUrl: str(person.linkedin_url),
       location: joinLocation([
@@ -118,6 +120,7 @@ export const apolloSource = (options: ApolloOptions): EngagementSource => {
       photoUrl: str(person.photo_url),
       raw: person,
       title: str(person.title),
+      twitterUrl: str(person.twitter_url),
     };
   };
 
