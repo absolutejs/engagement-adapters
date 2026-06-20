@@ -112,6 +112,20 @@ export type ActivityQuery = {
 };
 
 /**
+ * The result of a people search, carrying the resolved people PLUS the paid-call
+ * counts the search actually incurred — so a metered caller bills the work that
+ * happened, not just the rows that survived. `revealsAttempted` is every per-person
+ * reveal fired (a provider charges per reveal even when one resolves to nothing);
+ * `searchRequests` is the underlying search call(s). `people` is the non-null
+ * resolved subset — always `<= revealsAttempted`.
+ */
+export type PersonSearchResult = {
+  people: NormalizedPerson[];
+  revealsAttempted: number;
+  searchRequests: number;
+};
+
+/**
  * A sales-engagement provider. Every capability is optional so an adapter can implement
  * only what its provider (and the caller's plan) supports — a consumer checks for the
  * method before calling it.
@@ -122,7 +136,8 @@ export type EngagementSource = {
   enrichPerson?: (query: EnrichPersonQuery) => Promise<NormalizedPerson | null>;
   enrichCompany?: (query: EnrichCompanyQuery) => Promise<NormalizedCompany | null>;
   /** Find the decision-makers at a company by role — returns fully-resolved
-   *  people (name, LinkedIn, email when the plan allows). */
-  searchPeople?: (query: PersonSearchQuery) => Promise<NormalizedPerson[]>;
+   *  people (name, LinkedIn, email when the plan allows) plus the paid-call counts
+   *  the search incurred, so a metered caller bills the work accurately. */
+  searchPeople?: (query: PersonSearchQuery) => Promise<PersonSearchResult>;
   listActivities?: (query: ActivityQuery) => Promise<EngagementActivity[]>;
 };

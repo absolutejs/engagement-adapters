@@ -16,6 +16,7 @@ import type {
   NormalizedCompany,
   NormalizedPerson,
   PersonSearchQuery,
+  PersonSearchResult,
 } from "@absolutejs/engagement";
 
 const APOLLO_BASE_URL = "https://api.apollo.io";
@@ -153,7 +154,7 @@ export const apolloSource = (options: ApolloOptions): EngagementSource => {
   // id — yielding fully-resolved people (name, LinkedIn, email when allowed).
   const searchPeople = async (
     query: PersonSearchQuery,
-  ): Promise<NormalizedPerson[]> => {
+  ): Promise<PersonSearchResult> => {
     const limit = query.limit ?? DEFAULT_SEARCH_LIMIT;
     const search = await post("/v1/mixed_people/api_search", {
       page: 1,
@@ -166,17 +167,29 @@ export const apolloSource = (options: ApolloOptions): EngagementSource => {
         ? { q_keywords: query.company }
         : {}),
     });
+    // A non-OK search returns null (no charge); a parsed body means the search
+    // request happened (and was billed).
+    const searchRequests = search ? 1 : 0;
     const previews =
       search && Array.isArray(search.people) ? search.people : [];
     const ids = previews
       .map((person) => (isRecord(person) ? str(person.id) : null))
       .filter((id): id is string => id !== null);
-    if (ids.length === 0) return [];
+    if (ids.length === 0) {
+      return { people: [], revealsAttempted: 0, searchRequests };
+    }
+    // Each id is revealed via /people/match — a paid reveal that's charged even
+    // when it resolves to null. revealsAttempted = ids.length (what Apollo billed
+    // + what counts against the reveal rate limit), NOT the non-null survivors.
     const revealed = await Promise.all(ids.map((id) => matchById(id)));
 
-    return revealed.filter((person): person is NormalizedPerson =>
-      person !== null,
-    );
+    return {
+      people: revealed.filter(
+        (person): person is NormalizedPerson => person !== null,
+      ),
+      revealsAttempted: ids.length,
+      searchRequests,
+    };
   };
 
   const enrichCompany = async (
