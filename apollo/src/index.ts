@@ -97,7 +97,11 @@ export const apolloSource = (options: ApolloOptions): EngagementSource => {
       : [];
     const emails = Array.from(
       new Set(
-        [str(person.email), contact ? str(contact.email) : null, ...personalEmails]
+        [
+          str(person.email),
+          contact ? str(contact.email) : null,
+          ...personalEmails,
+        ]
           .filter((value): value is string => value !== null)
           .filter((value) => !LOCKED_EMAIL.test(value)),
       ),
@@ -163,9 +167,7 @@ export const apolloSource = (options: ApolloOptions): EngagementSource => {
         ? { person_titles: query.titles }
         : {}),
       ...(query.domain ? { q_organization_domains_list: [query.domain] } : {}),
-      ...(!query.domain && query.company
-        ? { q_keywords: query.company }
-        : {}),
+      ...(!query.domain && query.company ? { q_keywords: query.company } : {}),
     });
     // A non-OK search returns null (no charge); a parsed body means the search
     // request happened (and was billed).

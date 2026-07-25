@@ -56,7 +56,12 @@ export type NormalizedCompany = {
   raw?: unknown;
 };
 
-export type EngagementChannel = "call" | "email" | "linkedin" | "meeting" | "other";
+export type EngagementChannel =
+  | "call"
+  | "email"
+  | "linkedin"
+  | "meeting"
+  | "other";
 
 export type EngagementDirection = "inbound" | "outbound";
 
@@ -134,7 +139,9 @@ export type EngagementSource = {
   /** Stable provider id, e.g. "apollo". */
   readonly id: string;
   enrichPerson?: (query: EnrichPersonQuery) => Promise<NormalizedPerson | null>;
-  enrichCompany?: (query: EnrichCompanyQuery) => Promise<NormalizedCompany | null>;
+  enrichCompany?: (
+    query: EnrichCompanyQuery,
+  ) => Promise<NormalizedCompany | null>;
   /** Find the decision-makers at a company by role — returns fully-resolved
    *  people (name, LinkedIn, email when the plan allows) plus the paid-call counts
    *  the search incurred, so a metered caller bills the work accurately. */
