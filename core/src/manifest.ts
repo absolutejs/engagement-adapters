@@ -1,7 +1,11 @@
 import { defineManifest } from "@absolutejs/manifest";
 import { Type } from "@sinclair/typebox";
+import type { EngagementSource } from "./index";
 
-export const manifest = defineManifest<Record<string, never>>()({
+export const manifest = defineManifest<
+  Record<string, never>,
+  EngagementSource
+>()({
   contract: 2,
   discovery: {
     audiences: ["agent-hosts", "application-developers"],
@@ -23,5 +27,26 @@ export const manifest = defineManifest<Record<string, never>>()({
     tagline: "One safe contract for sales enrichment and outreach activity.",
   },
   settings: Type.Object({}),
-  wiring: [],
+  slots: {
+    source: {
+      configPath: "source",
+      contract: "engagement/source",
+      description: "Who provides sales enrichment and outreach activity",
+      known: ["@absolutejs/engagement-apollo"],
+      required: true,
+    },
+  },
+  wiring: [
+    {
+      description:
+        "Create one provider-neutral engagement source for enrichment and outreach activity.",
+      id: "default",
+      server: {
+        code: "const engagement = ${slot.source};",
+        imports: [],
+        placement: "module-scope",
+      },
+      title: "Create the engagement source",
+    },
+  ],
 });
