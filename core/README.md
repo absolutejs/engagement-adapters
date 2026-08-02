@@ -11,10 +11,10 @@ export const enrichLead = async (engagement: EngagementSource, email: string) =>
   engagement.enrichPerson?.({ email });
 ```
 
-The package manifest exposes a required `engagement/source` slot. AbsoluteJS
-Studio uses that slot to present compatible providers as no-code choices while
-keeping credentials in the environment and provider response shapes behind the
-shared contract.
+The package manifest exposes a required `engagement/source` slot. The hosted
+AbsoluteJS.ai platform uses that slot to present compatible providers as
+configuration choices while keeping credentials in the environment and provider
+response shapes behind the shared contract.
 
 ## Providers
 
