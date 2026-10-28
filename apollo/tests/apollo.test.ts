@@ -173,3 +173,29 @@ test("company enrichment does not misreport authentication and server failures a
   });
   expect(await missing.enrichCompany?.({ domain: "example.com" })).toBeNull();
 });
+
+test("company identity falls back to the returned website, never the requested domain", async () => {
+  for (const [organization, expected] of [
+    [{ website_url: "https://www.example.com/about" }, "example.com"],
+    [
+      {
+        primary_domain: "canonical.example",
+        website_url: "https://other.example",
+      },
+      "canonical.example",
+    ],
+    [{ website_url: "https://other.example" }, "other.example"],
+    [{ website_url: "javascript:example.com" }, null],
+    [{ website_url: "https://user:password@example.com" }, null],
+    [{ website_url: "not a url" }, null],
+    [{}, null],
+  ] as const) {
+    const source = apolloSource({
+      apiKey: "test",
+      fetchImpl: async () => jsonResponse({ organization }),
+    });
+    expect(
+      (await source.enrichCompany?.({ domain: "requested.example" }))?.domain,
+    ).toBe(expected);
+  }
+});

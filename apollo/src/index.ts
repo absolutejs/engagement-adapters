@@ -47,6 +47,24 @@ const str = (value: unknown): string | null =>
 const num = (value: unknown): number | null =>
   typeof value === "number" && Number.isFinite(value) ? value : null;
 
+// Only use provider-returned identity; never substitute the requested domain.
+const companyDomain = (org: Json): string | null => {
+  const primary = str(org.primary_domain);
+  if (primary) return primary;
+  const website = str(org.website_url);
+  if (!website) return null;
+  try {
+    const url = new URL(website);
+    return (url.protocol === "https:" || url.protocol === "http:") &&
+      !url.username &&
+      !url.password
+      ? url.hostname.toLowerCase().replace(/^www\./u, "") || null
+      : null;
+  } catch {
+    return null;
+  }
+};
+
 const joinLocation = (parts: Array<string | null>): string | null => {
   const present = parts.filter((part): part is string => part !== null);
 
@@ -236,7 +254,7 @@ export const apolloSource = (options: ApolloOptions): EngagementSource => {
             }
           : null,
       description: str(org.short_description),
-      domain: str(org.primary_domain),
+      domain: companyDomain(org),
       employeeCount: num(org.estimated_num_employees),
       foundedYear: num(org.founded_year),
       industry: str(org.industry),
