@@ -117,7 +117,7 @@ describe("Apollo engagement source", () => {
   });
 });
 
-test("company enrichment preserves Apollo revenue without inventing currency or precision", async () => {
+test("company enrichment preserves Apollo revenue with its documented USD denomination", async () => {
   const source = apolloSource({
     apiKey: "test",
     fetchImpl: async () =>
@@ -136,7 +136,7 @@ test("company enrichment preserves Apollo revenue without inventing currency or 
   expect(company?.annualRevenue).toMatchObject({
     amount: 12000000,
     display: "12M",
-    currency: null,
+    currency: "USD",
     basis: "provider_estimate",
     provider: "apollo",
   });

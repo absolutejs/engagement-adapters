@@ -227,9 +227,9 @@ export const apolloSource = (options: ApolloOptions): EngagementSource => {
           ? {
               amount: revenue !== null && revenue > 0 ? revenue : null,
               display: revenueDisplay,
-              // The endpoint does not supply an explicit currency field. Do not
-              // silently combine this figure with differently denominated prices.
-              currency: null,
+              // Apollo documents organization.annual_revenue as an estimate in USD:
+              // https://knowledge.apollo.io/hc/en-us/articles/4416909768717-Integrate-Marketo-with-Apollo
+              currency: "USD",
               basis: "provider_estimate",
               provider: "apollo",
               observedAt: new Date().toISOString(),
