@@ -67,7 +67,39 @@ export type CompanyRevenue = {
   observedAt: string;
 };
 
+export type CompanyReference = {
+  providerId: string | null;
+  name: string | null;
+  domain: string | null;
+  country: string | null;
+  employeeCount: number | null;
+  industries: string[];
+};
+
+/** Provider observations, never inferred customer counts or subscription pricing. */
+export type CompanyIntelligence = {
+  provider: string;
+  observedAt: string;
+  sourceUrl: string | null;
+  websiteUrl: string | null;
+  location: string | null;
+  industries: string[];
+  keywords: string[];
+  technologies: string[];
+  retailLocationCount: number | null;
+  activeRetailLocationCount: number | null;
+  parent: CompanyReference | null;
+  ultimateParent: CompanyReference | null;
+  parentIds: string[];
+  subsidiaries: CompanyReference[];
+  subsidiaryCount: number | null;
+  totalFunding: number | null;
+  latestFundingStage: string | null;
+  latestFundingDate: string | null;
+};
+
 export type NormalizedCompany = {
+  intelligence?: CompanyIntelligence | null;
   providerId?: string | null;
   annualRevenue?: CompanyRevenue | null;
   name: string | null;
@@ -118,6 +150,21 @@ export type EnrichPersonQuery = {
 export type EnrichCompanyQuery = {
   domain?: string;
   name?: string;
+  website?: string;
+  linkedinUrl?: string;
+  signal?: AbortSignal;
+};
+
+/** One bounded page; no implicit enrichment or paid pagination. */
+export type CompanySearchQuery = {
+  domain?: string;
+  name?: string;
+  limit?: number;
+  signal?: AbortSignal;
+};
+export type CompanySearchResult = {
+  companies: NormalizedCompany[];
+  searchRequests: number;
 };
 
 /**
@@ -169,6 +216,13 @@ export type EngagementSource = {
   /** Find the decision-makers at a company by role — returns fully-resolved
    *  people (name, LinkedIn, email when the plan allows) plus the paid-call counts
    *  the search incurred, so a metered caller bills the work accurately. */
+  searchCompanies?: (query: CompanySearchQuery) => Promise<CompanySearchResult>;
   searchPeople?: (query: PersonSearchQuery) => Promise<PersonSearchResult>;
   listActivities?: (query: ActivityQuery) => Promise<EngagementActivity[]>;
 };
+
+export {
+  companyWebsiteDomain,
+  companyIdentityMatch,
+  selectCompanyIdentity,
+} from "./companyIdentity";

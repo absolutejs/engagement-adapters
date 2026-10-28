@@ -32,3 +32,21 @@ Company enrichment returns `null` for no match (404), throws `RateLimitError` fo
 ## License
 
 Apache-2.0.
+
+### Company research
+
+`searchCompanies({ domain?, name?, limit?, signal? })` reads one bounded page
+(default 5, maximum 100) without contact reveals or implicit enrichment. Apollo
+charges one credit per page; meter each successful call. Errors are explicit,
+including scope/authentication failures, so an unavailable search is not “no data.”
+`enrichCompany` also accepts `website` and `linkedinUrl`; requests have a 30-second
+timeout and accept cancellation.
+
+Company `intelligence` retains provider-reported ownership, subsidiaries, retail
+locations, industries, technologies, funding, source URL and observation time.
+Missing fields remain null/empty, never inferred. Funding is not revenue, locations
+are not customers, and organization revenue is not necessarily subscription ARR.
+Apollo does not establish a vendor's pricing cadence or comparable business scope.
+Use `companyIdentityMatch` / `selectCompanyIdentity` from the engagement contract
+to require an independently returned exact domain and a compatible brand name;
+ambiguous provider records must not be merged based on revenue size.

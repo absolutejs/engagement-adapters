@@ -10,6 +10,7 @@ export const manifest = defineManifest<ApolloOptions>()({
       "enrich a person with Apollo",
       "enrich a company with Apollo",
       "search people by role",
+      "research company revenue and ownership",
       "read Apollo outreach activity",
     ],
     keywords: ["apollo", "engagement", "enrichment", "outreach", "sales"],
@@ -42,7 +43,7 @@ export const manifest = defineManifest<ApolloOptions>()({
         peers: [
           {
             name: "@absolutejs/engagement",
-            range: ">=0.0.7 <0.1",
+            range: ">=0.0.10 <0.1",
             reason: "Shared engagement contracts and rate-limit identity",
           },
         ],

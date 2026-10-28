@@ -25,3 +25,10 @@ response shapes behind the shared contract.
 ## License
 
 Apache-2.0.
+
+Company research includes bounded `searchCompanies`, typed provider intelligence,
+and shared identity helpers. `companyIdentityMatch` permits whole-token brand
+extensions only when the provider-returned domain matches exactly; it does not
+accept a requested domain substituted for missing evidence. `selectCompanyIdentity`
+rejects multiple distinct matching records. Optional intelligence fields allow
+other providers to implement only their documented capabilities.

@@ -12,6 +12,9 @@ import {
 } from "@absolutejs/engagement";
 import type {
   ActivityQuery,
+  CompanyReference,
+  CompanySearchQuery,
+  CompanySearchResult,
   EngagementActivity,
   EngagementSource,
   EnrichCompanyQuery,
@@ -39,7 +42,7 @@ export type ApolloOptions = {
 type Json = Record<string, unknown>;
 
 const isRecord = (value: unknown): value is Json =>
-  typeof value === "object" && value !== null;
+  typeof value === "object" && value !== null && !Array.isArray(value);
 
 const str = (value: unknown): string | null =>
   typeof value === "string" && value.length > 0 ? value : null;
@@ -71,6 +74,41 @@ const joinLocation = (parts: Array<string | null>): string | null => {
   return present.length > 0 ? present.join(", ") : null;
 };
 
+const strings = (value: unknown): string[] =>
+  Array.isArray(value)
+    ? value.flatMap((item) =>
+        typeof item === "string" && item.trim() ? [item.trim()] : [],
+      )
+    : [];
+const count = (value: unknown): number | null =>
+  typeof value === "number" && Number.isFinite(value) && value >= 0
+    ? value
+    : null;
+const publicUrl = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  try {
+    const url = new URL(value);
+    return ["https:", "http:"].includes(url.protocol) &&
+      !url.username &&
+      !url.password
+      ? url.href
+      : null;
+  } catch {
+    return null;
+  }
+};
+const reference = (value: unknown): CompanyReference | null =>
+  isRecord(value)
+    ? {
+        providerId: str(value.id),
+        name: str(value.name),
+        domain: companyDomain(value),
+        country: str(value.country),
+        employeeCount: count(value.estimated_num_employees),
+        industries: strings(value.industries),
+      }
+    : null;
+
 export const apolloSource = (options: ApolloOptions): EngagementSource => {
   const baseUrl = options.baseUrl ?? APOLLO_BASE_URL;
   const doFetch = options.fetchImpl ?? fetch;
@@ -94,26 +132,6 @@ export const apolloSource = (options: ApolloOptions): EngagementSource => {
     const json: unknown = await res.json();
 
     return isRecord(json) ? json : null;
-  };
-
-  const get = async (path: string): Promise<Json | null> => {
-    const res = await doFetch(`${baseUrl}${path}`, { headers, method: "GET" });
-    if (res.status === 429) throw new RateLimitError("apollo");
-    if (res.status === 404) return null;
-    if (!res.ok)
-      throw new EngagementProviderError(
-        "apollo",
-        res.status,
-        "company enrichment",
-      );
-    const json: unknown = await res.json();
-    if (!isRecord(json))
-      throw new EngagementProviderError(
-        "apollo",
-        502,
-        "invalid company response",
-      );
-    return json;
   };
 
   // Map a revealed Apollo person record → NormalizedPerson. Shared by
@@ -226,19 +244,41 @@ export const apolloSource = (options: ApolloOptions): EngagementSource => {
     };
   };
 
-  const enrichCompany = async (
-    query: EnrichCompanyQuery,
-  ): Promise<NormalizedCompany | null> => {
-    if (!query.domain) return null;
-    const params = new URLSearchParams({ domain: query.domain });
-    if (query.name?.trim()) params.set("name", query.name.trim());
-    const json = await get(`/v1/organizations/enrich?${params.toString()}`);
-    const org = json && isRecord(json.organization) ? json.organization : null;
-    if (!org) return null;
-
+  const normalizeCompany = (org: Json): NormalizedCompany => {
     const revenue = num(org.annual_revenue);
     const revenueDisplay = str(org.annual_revenue_printed);
     return {
+      intelligence: {
+        provider: "apollo",
+        observedAt: new Date().toISOString(),
+        sourceUrl: /^[a-f0-9]{24}$/iu.test(str(org.id) ?? "")
+          ? `https://app.apollo.io/#/organizations/${org.id}`
+          : null,
+        websiteUrl: publicUrl(org.website_url),
+        location: joinLocation([
+          str(org.city),
+          str(org.state),
+          str(org.country),
+        ]),
+        industries: strings(org.industries),
+        keywords: strings(org.keywords),
+        technologies: strings(org.technology_names),
+        retailLocationCount: count(org.retail_location_count),
+        activeRetailLocationCount: count(org.num_retail_locations),
+        parent: reference(org.owned_by_organization),
+        ultimateParent: reference(org.ultimate_parent_organization),
+        parentIds: strings(org.owned_by_chain),
+        subsidiaries: Array.isArray(org.suborganizations)
+          ? org.suborganizations.flatMap((value) => {
+              const item = reference(value);
+              return item ? [item] : [];
+            })
+          : [],
+        subsidiaryCount: count(org.num_suborganizations),
+        totalFunding: count(org.total_funding),
+        latestFundingStage: str(org.latest_funding_stage),
+        latestFundingDate: str(org.latest_funding_round_date),
+      },
       providerId: str(org.id),
       annualRevenue:
         (revenue !== null && revenue > 0) || revenueDisplay
@@ -261,6 +301,101 @@ export const apolloSource = (options: ApolloOptions): EngagementSource => {
       linkedinUrl: str(org.linkedin_url),
       name: str(org.name),
       raw: org,
+    };
+  };
+
+  const companyRequest = async (
+    path: string,
+    signal?: AbortSignal,
+    body?: Json,
+  ): Promise<Json | null> => {
+    signal?.throwIfAborted();
+    const res = await doFetch(`${baseUrl}${path}`, {
+      headers,
+      method: body ? "POST" : "GET",
+      ...(body ? { body: JSON.stringify(body) } : {}),
+      signal: AbortSignal.any([
+        AbortSignal.timeout(30_000),
+        ...(signal ? [signal] : []),
+      ]),
+    });
+    if (res.status === 429) throw new RateLimitError("apollo");
+    if (res.status === 404 && !body) return null;
+    if (!res.ok)
+      throw new EngagementProviderError(
+        "apollo",
+        res.status,
+        body ? "company search" : "company enrichment",
+      );
+    const value: unknown = await res.json();
+    if (!isRecord(value))
+      throw new EngagementProviderError(
+        "apollo",
+        502,
+        "invalid company response",
+      );
+    return value;
+  };
+  const enrichCompany = async (
+    query: EnrichCompanyQuery,
+  ): Promise<NormalizedCompany | null> => {
+    if (!query.domain && !query.website && !query.linkedinUrl) return null;
+    const params = new URLSearchParams();
+    if (query.domain) params.set("domain", query.domain);
+    if (query.website) params.set("website", query.website);
+    if (query.linkedinUrl) params.set("linkedin_url", query.linkedinUrl);
+    if (query.name?.trim()) params.set("name", query.name.trim());
+    const json = await companyRequest(
+      `/api/v1/organizations/enrich?${params}`,
+      query.signal,
+    );
+    if (!json || json.organization === null) return null;
+    if (!isRecord(json.organization))
+      throw new EngagementProviderError(
+        "apollo",
+        502,
+        "invalid company enrichment response",
+      );
+    return normalizeCompany(json.organization);
+  };
+  const searchCompanies = async (
+    query: CompanySearchQuery,
+  ): Promise<CompanySearchResult> => {
+    if (!query.domain && !query.name?.trim())
+      return { companies: [], searchRequests: 0 };
+    const limit = Number.isFinite(query.limit)
+      ? Math.max(1, Math.min(100, Math.floor(query.limit!)))
+      : 5;
+    const json = await companyRequest(
+      "/api/v1/mixed_companies/search",
+      query.signal,
+      {
+        page: 1,
+        per_page: limit,
+        ...(query.domain
+          ? { q_organization_domains_list: [query.domain] }
+          : {}),
+        ...(!query.domain && query.name
+          ? { q_organization_name: query.name.trim() }
+          : {}),
+      },
+    );
+    if (
+      !json ||
+      !Array.isArray(json.organizations) ||
+      json.organizations.some((value) => !isRecord(value))
+    )
+      throw new EngagementProviderError(
+        "apollo",
+        502,
+        "invalid company search response",
+      );
+    return {
+      companies: json.organizations
+        .filter(isRecord)
+        .slice(0, limit)
+        .map(normalizeCompany),
+      searchRequests: 1,
     };
   };
 
@@ -320,5 +455,6 @@ export const apolloSource = (options: ApolloOptions): EngagementSource => {
     id: "apollo",
     listActivities,
     searchPeople,
+    searchCompanies,
   };
 };
