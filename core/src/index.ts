@@ -9,6 +9,18 @@
 // untyped provider payload is preserved on `raw` for callers that need a field we have
 // not normalized yet.
 
+/** Provider failure metadata safe to expose without response bodies or credentials. */
+export class EngagementProviderError extends Error {
+  constructor(
+    public readonly provider: string,
+    public readonly status: number,
+    public readonly operation: string,
+  ) {
+    super(`${provider}: ${operation} failed (HTTP ${status})`);
+    this.name = "EngagementProviderError";
+  }
+}
+
 /**
  * Thrown by an adapter when the provider reports a rate limit (e.g. HTTP 429), so
  * a consumer can DEFER (retry when the window resets) instead of mistaking it for
@@ -45,7 +57,19 @@ export type NormalizedPerson = {
   raw?: unknown;
 };
 
+/** Provider-supplied company financial data, not an audited filing. */
+export type CompanyRevenue = {
+  amount: number | null;
+  display: string | null;
+  currency: string | null;
+  basis: "provider_estimate";
+  provider: string;
+  observedAt: string;
+};
+
 export type NormalizedCompany = {
+  providerId?: string | null;
+  annualRevenue?: CompanyRevenue | null;
   name: string | null;
   domain: string | null;
   industry: string | null;

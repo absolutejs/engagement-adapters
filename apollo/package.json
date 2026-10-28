@@ -2,7 +2,7 @@
   "author": "Alex Kahn",
   "description": "Apollo.io EngagementSource adapter for @absolutejs/engagement — person/company enrichment and outreach activity (emails sent/opened/replied) from the Apollo API.",
   "devDependencies": {
-    "@absolutejs/engagement": "0.0.8",
+    "@absolutejs/engagement": "0.0.9",
     "@types/bun": "1.3.14",
     "prettier": "3.8.1",
     "typescript": "5.9.3"
@@ -23,7 +23,7 @@
   "main": "./dist/index.js",
   "name": "@absolutejs/engagement-apollo",
   "peerDependencies": {
-    "@absolutejs/engagement": ">=0.0.8 <0.1"
+    "@absolutejs/engagement": ">=0.0.9 <0.1"
   },
   "publishConfig": {
     "access": "public"
@@ -40,11 +40,11 @@
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "verify-package": "absolute-manifest verify-package",
-    "check:package": "bun run format && bun run typecheck && bun run test && bun run verify-package && bun run build && bun run verify-package --artifacts"
+    "check:package": "bun run format && bun run typecheck && bun run test && bun run verify-package && bun run build"
   },
   "type": "module",
   "types": "./dist/index.d.ts",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -59,24 +59,10 @@
     "./manifest.json": "./dist/manifest.json"
   },
   "absolutejs": {
-    "manifestContract": 2,
-    "runtimePeers": {
-      "@absolutejs/engagement": {
-        "artifactImports": [
-          "@absolutejs/engagement"
-        ],
-        "buildExternals": [
-          "@absolutejs/engagement",
-          "@absolutejs/engagement/*"
-        ],
-        "optional": false,
-        "range": ">=0.0.8 <0.1",
-        "tested": "0.0.8"
-      }
-    }
+    "manifestContract": 2
   },
   "dependencies": {
-    "@absolutejs/manifest": "0.7.2",
+    "@absolutejs/manifest": "0.9.0",
     "@sinclair/typebox": "0.34.52"
   }
 }

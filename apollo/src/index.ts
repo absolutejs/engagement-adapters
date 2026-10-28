@@ -6,7 +6,10 @@
 // untyped JSON and several capabilities are plan-gated, so a missing field or an
 // unsupported plan yields `null`/`[]` rather than throwing.
 
-import { RateLimitError } from "@absolutejs/engagement";
+import {
+  EngagementProviderError,
+  RateLimitError,
+} from "@absolutejs/engagement";
 import type {
   ActivityQuery,
   EngagementActivity,
@@ -78,10 +81,21 @@ export const apolloSource = (options: ApolloOptions): EngagementSource => {
   const get = async (path: string): Promise<Json | null> => {
     const res = await doFetch(`${baseUrl}${path}`, { headers, method: "GET" });
     if (res.status === 429) throw new RateLimitError("apollo");
-    if (!res.ok) return null;
+    if (res.status === 404) return null;
+    if (!res.ok)
+      throw new EngagementProviderError(
+        "apollo",
+        res.status,
+        "company enrichment",
+      );
     const json: unknown = await res.json();
-
-    return isRecord(json) ? json : null;
+    if (!isRecord(json))
+      throw new EngagementProviderError(
+        "apollo",
+        502,
+        "invalid company response",
+      );
+    return json;
   };
 
   // Map a revealed Apollo person record → NormalizedPerson. Shared by
@@ -204,7 +218,23 @@ export const apolloSource = (options: ApolloOptions): EngagementSource => {
     const org = json && isRecord(json.organization) ? json.organization : null;
     if (!org) return null;
 
+    const revenue = num(org.annual_revenue);
+    const revenueDisplay = str(org.annual_revenue_printed);
     return {
+      providerId: str(org.id),
+      annualRevenue:
+        (revenue !== null && revenue > 0) || revenueDisplay
+          ? {
+              amount: revenue !== null && revenue > 0 ? revenue : null,
+              display: revenueDisplay,
+              // The endpoint does not supply an explicit currency field. Do not
+              // silently combine this figure with differently denominated prices.
+              currency: null,
+              basis: "provider_estimate",
+              provider: "apollo",
+              observedAt: new Date().toISOString(),
+            }
+          : null,
       description: str(org.short_description),
       domain: str(org.primary_domain),
       employeeCount: num(org.estimated_num_employees),

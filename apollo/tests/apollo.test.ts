@@ -116,3 +116,60 @@ describe("Apollo engagement source", () => {
     );
   });
 });
+
+test("company enrichment preserves Apollo revenue without inventing currency or precision", async () => {
+  const source = apolloSource({
+    apiKey: "test",
+    fetchImpl: async () =>
+      jsonResponse({
+        organization: {
+          id: "org-1",
+          name: "Example",
+          primary_domain: "example.com",
+          annual_revenue: 12000000,
+          annual_revenue_printed: "12M",
+        },
+      }),
+  });
+  const company = await source.enrichCompany?.({ domain: "example.com" });
+  expect(company?.providerId).toBe("org-1");
+  expect(company?.annualRevenue).toMatchObject({
+    amount: 12000000,
+    display: "12M",
+    currency: null,
+    basis: "provider_estimate",
+    provider: "apollo",
+  });
+  expect(Number.isFinite(Date.parse(company!.annualRevenue!.observedAt))).toBe(
+    true,
+  );
+});
+
+test("missing or zero revenue remains unavailable", async () => {
+  const source = apolloSource({
+    apiKey: "test",
+    fetchImpl: async () =>
+      jsonResponse({ organization: { annual_revenue: 0 } }),
+  });
+  expect(
+    (await source.enrichCompany?.({ domain: "example.com" }))?.annualRevenue,
+  ).toBeNull();
+});
+
+test("company enrichment does not misreport authentication and server failures as no data", async () => {
+  for (const status of [401, 403, 500, 503]) {
+    const source = apolloSource({
+      apiKey: "test",
+      fetchImpl: async () =>
+        jsonResponse({ error: "private provider detail" }, status),
+    });
+    await expect(
+      source.enrichCompany?.({ domain: "example.com" }),
+    ).rejects.toThrow(`HTTP ${status}`);
+  }
+  const missing = apolloSource({
+    apiKey: "test",
+    fetchImpl: async () => jsonResponse({}, 404),
+  });
+  expect(await missing.enrichCompany?.({ domain: "example.com" })).toBeNull();
+});
