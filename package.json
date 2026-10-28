@@ -1,6 +1,6 @@
 {
   "author": "Alex Kahn",
-  "description": "Monorepo root for @absolutejs/engagement sales-engagement adapters — enrichment + outreach activity from Apollo, Outreach, Salesloft, … normalized to the EngagementSource contract. Subpackages live in ./<name>/ and publish independently as @absolutejs/engagement-<name>.",
+  "description": "Monorepo root for @absolutejs/engagement sales-engagement adapters \u2014 enrichment + outreach activity from Apollo, Outreach, Salesloft, \u2026 normalized to the EngagementSource contract. Subpackages live in ./<name>/ and publish independently as @absolutejs/engagement-<name>.",
   "license": "Apache-2.0",
   "name": "engagement-adapters",
   "private": true,
@@ -11,5 +11,8 @@
   "workspaces": [
     "core",
     "apollo"
-  ]
+  ],
+  "scripts": {
+    "postinstall": "bun run --cwd core build"
+  }
 }
