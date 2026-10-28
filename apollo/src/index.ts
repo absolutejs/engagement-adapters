@@ -230,9 +230,9 @@ export const apolloSource = (options: ApolloOptions): EngagementSource => {
     query: EnrichCompanyQuery,
   ): Promise<NormalizedCompany | null> => {
     if (!query.domain) return null;
-    const json = await get(
-      `/v1/organizations/enrich?domain=${encodeURIComponent(query.domain)}`,
-    );
+    const params = new URLSearchParams({ domain: query.domain });
+    if (query.name?.trim()) params.set("name", query.name.trim());
+    const json = await get(`/v1/organizations/enrich?${params.toString()}`);
     const org = json && isRecord(json.organization) ? json.organization : null;
     if (!org) return null;
 

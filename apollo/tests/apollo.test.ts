@@ -199,3 +199,26 @@ test("company identity falls back to the returned website, never the requested d
     ).toBe(expected);
   }
 });
+
+test("company enrichment sends both domain and company name to improve provider identity matching", async () => {
+  let requested = "";
+  const source = apolloSource({
+    apiKey: "test",
+    fetchImpl: async (input) => {
+      requested = String(input);
+      return jsonResponse({
+        organization: {
+          name: "Example & Company",
+          primary_domain: "example.com",
+        },
+      });
+    },
+  });
+  await source.enrichCompany?.({
+    domain: "example.com",
+    name: " Example & Company ",
+  });
+  const url = new URL(requested);
+  expect(url.searchParams.get("domain")).toBe("example.com");
+  expect(url.searchParams.get("name")).toBe("Example & Company");
+});
