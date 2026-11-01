@@ -222,3 +222,29 @@ test("company enrichment sends both domain and company name to improve provider 
   expect(url.searchParams.get("domain")).toBe("example.com");
   expect(url.searchParams.get("name")).toBe("Example & Company");
 });
+
+test("person enrichment preserves only the provider-returned employer domain, including its website fallback", async () => {
+  for (const [organization, expected] of [
+    [
+      { name: "Example", website_url: "https://www.example.com/team" },
+      "example.com",
+    ],
+    [{ name: "Other", primary_domain: "other.example" }, "other.example"],
+    [{ name: "Example" }, null],
+    [{ website_url: "https://user:password@example.com/" }, null],
+  ] as const) {
+    const source = apolloSource({
+      apiKey: "test",
+      fetchImpl: async () =>
+        jsonResponse({
+          person: { name: "Jane Smith", title: "CTO", organization },
+        }),
+    });
+    const person = await source.enrichPerson?.({
+      name: "Jane Smith",
+      domain: "requested.example",
+    });
+    expect(person?.companyDomain).toBe(expected);
+    expect(person?.title).toBe("CTO");
+  }
+});

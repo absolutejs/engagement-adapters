@@ -159,7 +159,7 @@ export const apolloSource = (options: ApolloOptions): EngagementSource => {
 
     return {
       company: org ? str(org.name) : null,
-      companyDomain: org ? str(org.primary_domain) : null,
+      companyDomain: org ? companyDomain(org) : null,
       emails,
       facebookUrl: str(person.facebook_url),
       firstName: str(person.first_name),
