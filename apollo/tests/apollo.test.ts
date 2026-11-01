@@ -3,7 +3,7 @@ import {
   EngagementProviderError,
   RateLimitError,
 } from "@absolutejs/engagement";
-import { apolloSource } from "../src";
+import { ApolloProviderError, apolloSource } from "../src";
 
 const jsonResponse = (value: unknown, status = 200) =>
   new Response(JSON.stringify(value), {
@@ -327,4 +327,29 @@ test("over-returned and duplicate search records cannot exceed the paid reveal l
   });
   expect(revealed).toEqual(["a", "b"]);
   expect(result?.revealsAttempted).toBe(2);
+});
+
+test("billing failures retain the safe provider code and actionable message without raw data", async () => {
+  const source = apolloSource({
+    apiKey: "test",
+    fetchImpl: async () =>
+      jsonResponse(
+        {
+          error: "private HTML",
+          error_details: {
+            code: "BILLING.LIMIT.CREDITS_EXHAUSTED",
+            context: { secret: "private" },
+          },
+        },
+        422,
+      ),
+  });
+  const error = await source
+    .enrichPerson?.({ name: "Person" })
+    .catch((value) => value);
+  expect(error).toBeInstanceOf(ApolloProviderError);
+  expect(error.code).toBe("BILLING.LIMIT.CREDITS_EXHAUSTED");
+  expect(error.message).toContain("Apollo lead credits are exhausted");
+  expect(error.message).not.toContain("private");
+  expect(JSON.stringify(error)).not.toContain("private");
 });

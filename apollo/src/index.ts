@@ -39,6 +39,22 @@ export type ApolloOptions = {
   fetchImpl?: typeof fetch;
 };
 
+/** Safe provider classification; response bodies and billing context stay private. */
+export class ApolloProviderError extends EngagementProviderError {
+  constructor(
+    status: number,
+    operation: string,
+    public readonly code: string | null,
+  ) {
+    super("apollo", status, operation);
+    this.name = "ApolloProviderError";
+    if (code === "BILLING.LIMIT.CREDITS_EXHAUSTED") {
+      this.message =
+        "Apollo lead credits are exhausted. An administrator must replenish the connected Apollo account; application credits do not fund Apollo.";
+    }
+  }
+}
+
 type Json = Record<string, unknown>;
 
 const isRecord = (value: unknown): value is Json =>
@@ -109,6 +125,21 @@ const reference = (value: unknown): CompanyReference | null =>
       }
     : null;
 
+const providerFailure = async (res: Response, operation: string) => {
+  const value: unknown = await res.json().catch(() => null);
+  const details =
+    isRecord(value) && isRecord(value.error_details)
+      ? value.error_details
+      : null;
+  const code =
+    details &&
+    typeof details.code === "string" &&
+    /^[A-Z0-9_.]{1,120}$/u.test(details.code)
+      ? details.code
+      : null;
+  return new ApolloProviderError(res.status, operation, code);
+};
+
 export const apolloSource = (options: ApolloOptions): EngagementSource => {
   const baseUrl = options.baseUrl ?? APOLLO_BASE_URL;
   const doFetch = options.fetchImpl ?? fetch;
@@ -127,7 +158,7 @@ export const apolloSource = (options: ApolloOptions): EngagementSource => {
       signal: AbortSignal.timeout(30_000),
     });
     if (res.status === 429) throw new RateLimitError("apollo");
-    if (!res.ok) throw new EngagementProviderError("apollo", res.status, path);
+    if (!res.ok) throw await providerFailure(res, path);
     const json: unknown = await res.json().catch(() => null);
     if (!isRecord(json))
       throw new EngagementProviderError(
@@ -348,9 +379,8 @@ export const apolloSource = (options: ApolloOptions): EngagementSource => {
     if (res.status === 429) throw new RateLimitError("apollo");
     if (res.status === 404 && !body) return null;
     if (!res.ok)
-      throw new EngagementProviderError(
-        "apollo",
-        res.status,
+      throw await providerFailure(
+        res,
         body ? "company search" : "company enrichment",
       );
     const value: unknown = await res.json();
