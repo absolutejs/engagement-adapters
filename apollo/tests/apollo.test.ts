@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { RateLimitError } from "@absolutejs/engagement";
+import {
+  EngagementProviderError,
+  RateLimitError,
+} from "@absolutejs/engagement";
 import { apolloSource } from "../src";
 
 const jsonResponse = (value: unknown, status = 200) =>
@@ -70,7 +73,7 @@ describe("Apollo engagement source", () => {
       const body =
         typeof init?.body === "string" ? JSON.parse(init.body) : undefined;
 
-      if (url.endsWith("/v1/mixed_people/api_search")) {
+      if (url.endsWith("/api/v1/mixed_people/api_search")) {
         expect(body).toEqual({
           page: 1,
           per_page: 2,
@@ -247,4 +250,81 @@ test("person enrichment preserves only the provider-returned employer domain, in
     expect(person?.companyDomain).toBe(expected);
     expect(person?.title).toBe("CTO");
   }
+});
+
+test("people search and reveal use canonical endpoints and expose provider failures", async () => {
+  for (const status of [401, 403, 422, 500, 503]) {
+    for (const failSearch of [true, false]) {
+      const calls: string[] = [];
+      const source = apolloSource({
+        apiKey: "secret-test-key",
+        fetchImpl: async (input) => {
+          const path = new URL(String(input)).pathname;
+          calls.push(path);
+          if (path === "/api/v1/mixed_people/api_search" && !failSearch)
+            return jsonResponse({ people: [{ id: "p1" }] });
+          return jsonResponse({ error: "private provider details" }, status);
+        },
+      });
+      await expect(
+        source.searchPeople?.({ domain: "example.com", limit: 1 }),
+      ).rejects.toBeInstanceOf(EngagementProviderError);
+      expect(calls).toEqual(
+        failSearch
+          ? ["/api/v1/mixed_people/api_search"]
+          : ["/api/v1/mixed_people/api_search", "/api/v1/people/match"],
+      );
+    }
+  }
+});
+
+test("direct person enrichment uses canonical endpoint without leaking failure bodies", async () => {
+  const source = apolloSource({
+    apiKey: "test",
+    fetchImpl: async (input) => {
+      expect(new URL(String(input)).pathname).toBe("/api/v1/people/match");
+      return jsonResponse({ error: "sensitive provider details" }, 422);
+    },
+  });
+  await expect(
+    source.enrichPerson?.({ name: "Person", domain: "example.com" }),
+  ).rejects.toThrow("apollo: /api/v1/people/match failed (HTTP 422)");
+});
+
+test("invalid person response is not silently treated as a missing record", async () => {
+  for (const payload of [null, [], "invalid", {}]) {
+    const source = apolloSource({
+      apiKey: "test",
+      fetchImpl: async () => jsonResponse(payload),
+    });
+    await expect(
+      source.enrichPerson?.({ name: "Person" }),
+    ).rejects.toBeInstanceOf(EngagementProviderError);
+  }
+  const missing = apolloSource({
+    apiKey: "test",
+    fetchImpl: async () => jsonResponse({ person: null }),
+  });
+  expect(await missing.enrichPerson?.({ name: "Person" })).toBeNull();
+});
+
+test("over-returned and duplicate search records cannot exceed the paid reveal limit", async () => {
+  const revealed: string[] = [];
+  const source = apolloSource({
+    apiKey: "test",
+    fetchImpl: async (input, init) => {
+      if (String(input).endsWith("/api_search"))
+        return jsonResponse({
+          people: [{ id: "a" }, { id: "a" }, { id: "b" }, { id: "c" }],
+        });
+      revealed.push(JSON.parse(String(init?.body)).id);
+      return jsonResponse({ person: null });
+    },
+  });
+  const result = await source.searchPeople?.({
+    domain: "example.com",
+    limit: 2,
+  });
+  expect(revealed).toEqual(["a", "b"]);
+  expect(result?.revealsAttempted).toBe(2);
 });

@@ -3,8 +3,8 @@
 // Implements the EngagementSource contract over the Apollo REST API (api.apollo.io),
 // authenticated with an `X-Api-Key`. Two well-documented enrichment calls plus a
 // best-effort activity feed. Every response is parsed defensively — Apollo's payloads are
-// untyped JSON and several capabilities are plan-gated, so a missing field or an
-// unsupported plan yields `null`/`[]` rather than throwing.
+// untyped JSON. Missing records remain null/empty; provider failures are explicit
+// so callers cannot mistake authentication, plan or request errors for no data.
 
 import {
   EngagementProviderError,
@@ -117,21 +117,25 @@ export const apolloSource = (options: ApolloOptions): EngagementSource => {
     "X-Api-Key": options.apiKey,
   };
 
-  // A 429 is surfaced as a RateLimitError so the caller can DEFER (the window
-  // resets, then retry) rather than read an empty body as "nothing found" and
-  // act on it. Every other non-OK status stays a soft null (the provider is
-  // best-effort + plan-gated; a missing capability must not throw).
-  const post = async (path: string, body: Json): Promise<Json | null> => {
+  // An HTTP failure is not an empty search or an absent person. Keep provider
+  // bodies private; expose only the endpoint and HTTP status through the shared error.
+  const post = async (path: string, body: Json): Promise<Json> => {
     const res = await doFetch(`${baseUrl}${path}`, {
       body: JSON.stringify(body),
       headers,
       method: "POST",
+      signal: AbortSignal.timeout(30_000),
     });
     if (res.status === 429) throw new RateLimitError("apollo");
-    if (!res.ok) return null;
-    const json: unknown = await res.json();
-
-    return isRecord(json) ? json : null;
+    if (!res.ok) throw new EngagementProviderError("apollo", res.status, path);
+    const json: unknown = await res.json().catch(() => null);
+    if (!isRecord(json))
+      throw new EngagementProviderError(
+        "apollo",
+        502,
+        `invalid ${path} response`,
+      );
+    return json;
   };
 
   // Map a revealed Apollo person record → NormalizedPerson. Shared by
@@ -182,8 +186,14 @@ export const apolloSource = (options: ApolloOptions): EngagementSource => {
   // Reveal a single person by their Apollo id (the search returns obfuscated
   // previews; people/match by id unlocks the full record).
   const matchById = async (id: string): Promise<NormalizedPerson | null> => {
-    const json = await post("/v1/people/match", { id });
-    const person = json && isRecord(json.person) ? json.person : null;
+    const json = await post("/api/v1/people/match", { id });
+    if (json.person !== null && !isRecord(json.person))
+      throw new EngagementProviderError(
+        "apollo",
+        502,
+        "invalid person enrichment response",
+      );
+    const person = isRecord(json.person) ? json.person : null;
 
     return person ? normalizePerson(person) : null;
   };
@@ -191,14 +201,20 @@ export const apolloSource = (options: ApolloOptions): EngagementSource => {
   const enrichPerson = async (
     query: EnrichPersonQuery,
   ): Promise<NormalizedPerson | null> => {
-    const json = await post("/v1/people/match", {
+    const json = await post("/api/v1/people/match", {
       domain: query.domain,
       email: query.email,
       linkedin_url: query.linkedinUrl,
       name: query.name,
       organization_name: query.company,
     });
-    const person = json && isRecord(json.person) ? json.person : null;
+    if (json.person !== null && !isRecord(json.person))
+      throw new EngagementProviderError(
+        "apollo",
+        502,
+        "invalid person enrichment response",
+      );
+    const person = isRecord(json.person) ? json.person : null;
 
     return person ? normalizePerson(person) : null;
   };
@@ -210,7 +226,11 @@ export const apolloSource = (options: ApolloOptions): EngagementSource => {
     query: PersonSearchQuery,
   ): Promise<PersonSearchResult> => {
     const limit = query.limit ?? DEFAULT_SEARCH_LIMIT;
-    const search = await post("/v1/mixed_people/api_search", {
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100)
+      throw new RangeError(
+        "Apollo people limit must be an integer from 1 to 100",
+      );
+    const search = await post("/api/v1/mixed_people/api_search", {
       page: 1,
       per_page: limit,
       ...(query.titles && query.titles.length > 0
@@ -219,14 +239,20 @@ export const apolloSource = (options: ApolloOptions): EngagementSource => {
       ...(query.domain ? { q_organization_domains_list: [query.domain] } : {}),
       ...(!query.domain && query.company ? { q_keywords: query.company } : {}),
     });
-    // A non-OK search returns null (no charge); a parsed body means the search
-    // request happened (and was billed).
-    const searchRequests = search ? 1 : 0;
-    const previews =
-      search && Array.isArray(search.people) ? search.people : [];
-    const ids = previews
-      .map((person) => (isRecord(person) ? str(person.id) : null))
-      .filter((id): id is string => id !== null);
+    const searchRequests = 1;
+    if (!Array.isArray(search.people))
+      throw new EngagementProviderError(
+        "apollo",
+        502,
+        "invalid people search response",
+      );
+    const ids = [
+      ...new Set(
+        search.people
+          .map((person) => (isRecord(person) ? str(person.id) : null))
+          .filter((id): id is string => id !== null),
+      ),
+    ].slice(0, limit);
     if (ids.length === 0) {
       return { people: [], revealsAttempted: 0, searchRequests };
     }
