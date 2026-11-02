@@ -8,6 +8,7 @@
 
 import {
   EngagementProviderError,
+  PersonSearchPartialError,
   RateLimitError,
 } from "@absolutejs/engagement";
 import type {
@@ -261,6 +262,14 @@ export const apolloSource = (options: ApolloOptions): EngagementSource => {
       throw new RangeError(
         "Apollo people limit must be an integer from 1 to 100",
       );
+    const maxMatches = query.maxMatches ?? limit;
+    if (
+      !Number.isSafeInteger(maxMatches) ||
+      maxMatches < 1 ||
+      maxMatches > limit ||
+      (query.requireEmployerMatch && !query.domain)
+    )
+      throw new RangeError("Invalid people match limit or employer constraint");
     const search = await post("/api/v1/mixed_people/api_search", {
       page: 1,
       per_page: limit,
@@ -290,15 +299,44 @@ export const apolloSource = (options: ApolloOptions): EngagementSource => {
     // Each id is revealed via /people/match — a paid reveal that's charged even
     // when it resolves to null. revealsAttempted = ids.length (what Apollo billed
     // + what counts against the reveal rate limit), NOT the non-null survivors.
-    const revealed = await Promise.all(ids.map((id) => matchById(id)));
-
-    return {
-      people: revealed.filter(
-        (person): person is NormalizedPerson => person !== null,
-      ),
-      revealsAttempted: ids.length,
+    const result: PersonSearchResult = {
+      people: [],
+      revealsAttempted: 0,
+      revealsConfirmed: 0,
       searchRequests,
+      outcomes: [],
     };
+    const domain = (value: string | null | undefined) =>
+      value
+        ?.trim()
+        .toLowerCase()
+        .replace(/^www\./u, "");
+    let matches = 0;
+    for (const id of ids) {
+      result.revealsAttempted++;
+      let person: NormalizedPerson | null;
+      try {
+        person = await matchById(id);
+      } catch (error) {
+        result.outcomes!.push({ id, status: "unknown" });
+        throw new PersonSearchPartialError(result, error);
+      }
+      result.revealsConfirmed!++;
+      result.outcomes!.push({ id, status: "fulfilled" });
+      if (person) {
+        result.people.push(person);
+        if (
+          !query.requireEmployerMatch ||
+          (person.name?.trim() &&
+            person.title?.trim() &&
+            person.company?.trim() &&
+            domain(person.companyDomain) === domain(query.domain))
+        )
+          matches++;
+      }
+      if (matches >= maxMatches) break;
+    }
+    return result;
   };
 
   const normalizeCompany = (org: Json): NormalizedCompany => {

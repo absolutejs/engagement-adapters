@@ -174,6 +174,10 @@ export type CompanySearchResult = {
  * person's title; `limit` caps how many people to return.
  */
 export type PersonSearchQuery = {
+  /** Stop sequential reveals once this many acceptable people are found. */
+  maxMatches?: number;
+  /** Require name, title, employer and exact requested domain before counting a match. */
+  requireEmployerMatch?: boolean;
   company?: string;
   domain?: string;
   titles?: string[];
@@ -198,7 +202,50 @@ export type ActivityQuery = {
 export type PersonSearchResult = {
   people: NormalizedPerson[];
   revealsAttempted: number;
+  /** Successfully returned reveal responses, including explicit no-match results. */
+  revealsConfirmed?: number;
+  outcomes?: Array<{ id: string; status: "fulfilled" | "unknown" }>;
   searchRequests: number;
+};
+
+/** Successful paid responses survive a later reveal failure; unknown attempts must not be replayed automatically. */
+export class PersonSearchPartialError extends EngagementProviderError {
+  readonly code = "ENGAGEMENT_PERSON_SEARCH_PARTIAL";
+  constructor(
+    public readonly result: PersonSearchResult,
+    cause: unknown,
+  ) {
+    super(
+      "engagement",
+      cause instanceof EngagementProviderError ? cause.status : 0,
+      "people reveal",
+    );
+    this.cause = cause;
+    this.message =
+      "People search stopped after a reveal failure; inspect partial accounting";
+    this.name = "PersonSearchPartialError";
+  }
+}
+export const isPersonSearchPartialError = (
+  error: unknown,
+): error is PersonSearchPartialError => {
+  if (
+    !error ||
+    typeof error !== "object" ||
+    Reflect.get(error, "code") !== "ENGAGEMENT_PERSON_SEARCH_PARTIAL"
+  )
+    return false;
+  const result = Reflect.get(error, "result");
+  return (
+    !!result &&
+    typeof result === "object" &&
+    Array.isArray(result.people) &&
+    Number.isSafeInteger(result.revealsAttempted) &&
+    Number.isSafeInteger(result.revealsConfirmed) &&
+    result.revealsConfirmed >= 0 &&
+    result.revealsAttempted > result.revealsConfirmed &&
+    Number.isSafeInteger(result.searchRequests)
+  );
 };
 
 /**

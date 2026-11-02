@@ -50,3 +50,9 @@ Apollo does not establish a vendor's pricing cadence or comparable business scop
 Use `companyIdentityMatch` / `selectCompanyIdentity` from the engagement contract
 to require an independently returned exact domain and a compatible brand name;
 ambiguous provider records must not be merged based on revenue size.
+
+## Bounded people reveals
+
+People searches can request `maxMatches: 1` to stop sequential reveals after one usable result. With `requireEmployerMatch: true`, a result counts only when it has a name, title, employer and the requested company domain. Rejected records remain in `people` for caller validation.
+
+Results expose `revealsAttempted`, `revealsConfirmed` and per-ID `outcomes`. A later reveal failure throws `PersonSearchPartialError`; use `isPersonSearchPartialError` to recover successful results and accounting. Confirmed responses include explicit no-match responses. An unknown outcome must retain its reservation and must not be automatically retried. The error retains its original cause without copying provider response bodies into its message.

@@ -32,3 +32,9 @@ extensions only when the provider-returned domain matches exactly; it does not
 accept a requested domain substituted for missing evidence. `selectCompanyIdentity`
 rejects multiple distinct matching records. Optional intelligence fields allow
 other providers to implement only their documented capabilities.
+
+## Bounded people reveals
+
+People searches can request `maxMatches: 1` to stop sequential reveals after one usable result. With `requireEmployerMatch: true`, a result counts only when it has a name, title, employer and the requested company domain. Rejected records remain in `people` for caller validation.
+
+Results expose `revealsAttempted`, `revealsConfirmed` and per-ID `outcomes`. A later reveal failure throws `PersonSearchPartialError`; use `isPersonSearchPartialError` to recover successful results and accounting. Confirmed responses include explicit no-match responses. An unknown outcome must retain its reservation and must not be automatically retried. The error retains its original cause without copying provider response bodies into its message.
