@@ -42,6 +42,12 @@ export type ApolloOptions = {
 
 /** Safe provider classification; response bodies and billing context stay private. */
 export class ApolloProviderError extends EngagementProviderError {
+  /** This request was explicitly refused, not a statement about earlier calls. */
+  get requestRejected(): boolean {
+    return (
+      this.status === 422 && this.code === "BILLING.LIMIT.CREDITS_EXHAUSTED"
+    );
+  }
   constructor(
     status: number,
     operation: string,
@@ -318,7 +324,13 @@ export const apolloSource = (options: ApolloOptions): EngagementSource => {
       try {
         person = await matchById(id);
       } catch (error) {
-        result.outcomes!.push({ id, status: "unknown" });
+        result.outcomes!.push({
+          id,
+          status:
+            error instanceof ApolloProviderError && error.requestRejected
+              ? "rejected"
+              : "unknown",
+        });
         throw new PersonSearchPartialError(result, error);
       }
       result.revealsConfirmed!++;

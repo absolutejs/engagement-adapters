@@ -204,7 +204,10 @@ export type PersonSearchResult = {
   revealsAttempted: number;
   /** Successfully returned reveal responses, including explicit no-match results. */
   revealsConfirmed?: number;
-  outcomes?: Array<{ id: string; status: "fulfilled" | "unknown" }>;
+  outcomes?: Array<{
+    id: string;
+    status: "fulfilled" | "rejected" | "unknown";
+  }>;
   searchRequests: number;
 };
 
